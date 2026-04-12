@@ -1,0 +1,22 @@
+{
+  "name": "boxmath",
+  "version": "1.0.0",
+  "description": "TypeScript math library",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "node --watch --experimental-transform-types src/index.ts",
+    "test": "node --experimental-transform-types --test src/**/*.test.ts",
+    "test:watch": "node --watch --experimental-transform-types --test src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2"
+  }
+}
