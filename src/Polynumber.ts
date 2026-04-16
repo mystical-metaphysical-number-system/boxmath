@@ -1,6 +1,6 @@
 import { pow } from './utils.ts';
 
-export class Monomial {
+export class Polynumber {
   readonly coefficient: bigint;
   readonly exponents: number[];
 
@@ -33,7 +33,7 @@ export class Monomial {
     return result;
   }
 
-  multiply(other: Monomial): Monomial {
+  multiply(other: Polynumber): Polynumber {
     const newCoeff = this.coefficient * other.coefficient;
 
     const maxLen = Math.max(this.exponents.length, other.exponents.length);
@@ -45,7 +45,7 @@ export class Monomial {
       newExps[i] = e1 + e2;
     }
 
-    return new Monomial(newCoeff, newExps);
+    return new Polynumber(newCoeff, newExps);
   }
 
   toString(varNames: string[] = ['x', 'y', 'z']): string {

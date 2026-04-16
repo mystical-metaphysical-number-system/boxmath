@@ -1,49 +1,49 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { Monomial } from './Monomial.ts';
-import { MultiPoly } from './MultiPoly.ts';
+import { Polynumber } from './Polynumber.ts';
+import { Multinumber } from './Multinumber.ts';
 import { caretProduct } from './utils.ts';
 
-describe('Monomial', () => {
+describe('Polynumber', () => {
   test('creates xy term', () => {
-    const xy = new Monomial(1n, [1, 1]);
+    const xy = new Polynumber(1n, [1, 1]);
     assert.strictEqual(xy.toString(), 'xy');
     assert.strictEqual(xy.degree, 2);
   });
 
   test('evaluates at point', () => {
-    const xy = new Monomial(1n, [1, 1]);
+    const xy = new Polynumber(1n, [1, 1]);
     assert.strictEqual(xy.evaluate([10n, 20n]), 200n);
   });
 
-  test('multiplies monomials', () => {
-    const x = new Monomial(1n, [1]);
-    const y = new Monomial(1n, [0, 1]);
+  test('multiplies polynumbers', () => {
+    const x = new Polynumber(1n, [1]);
+    const y = new Polynumber(1n, [0, 1]);
     const xy = x.multiply(y);
     assert.deepStrictEqual(xy.exponents, [1, 1]);
     assert.strictEqual(xy.coefficient, 1n);
   });
 });
 
-describe('MultiPoly', () => {
+describe('Multinumber', () => {
   test('constant product k = xy', () => {
-    const xy = new Monomial(1n, [1, 1]);
-    const k = new MultiPoly([xy]);
+    const xy = new Polynumber(1n, [1, 1]);
+    const k = new Multinumber([xy]);
     assert.strictEqual(k.toString(), 'xy');
     assert.strictEqual(k.evaluate([100n, 200n]), 20000n);
   });
 
   test('linear function f(x,y,z) = 2x + 3y + 5z', () => {
-    const f = MultiPoly.linear([2, 3, 5]);
+    const f = Multinumber.linear([2, 3, 5]);
     assert.strictEqual(f.evaluate([1n, 2n, 3n]), 23n);
   });
 
   test('truncate drops terms above degree k', () => {
     // 2 + 3x + x²  — truncate to degree 1 should drop x²
-    const p = new MultiPoly([
-      new Monomial(2n, []),
-      new Monomial(3n, [1]),
-      new Monomial(1n, [2]),
+    const p = new Multinumber([
+      new Polynumber(2n, []),
+      new Polynumber(3n, [1]),
+      new Polynumber(1n, [2]),
     ]);
     const t = p.truncate(1);
     assert.strictEqual(t.terms.length, 2);
@@ -59,15 +59,15 @@ describe('MultiPoly', () => {
   });
 
   test('multiplication from Wildberger paper', () => {
-    const B = new MultiPoly([
-      new Monomial(1n, []),
-      new Monomial(1n, [0,0,0,1]),
-      new Monomial(1n, [0,0,1,0,1])
+    const B = new Multinumber([
+      new Polynumber(1n, []),
+      new Polynumber(1n, [0,0,0,1]),
+      new Polynumber(1n, [0,0,1,0,1])
     ]);
 
-    const C = new MultiPoly([
-      new Monomial(1n, [0,2]),
-      new Monomial(1n, [0,0,1,0,1])
+    const C = new Multinumber([
+      new Polynumber(1n, [0,2]),
+      new Polynumber(1n, [0,0,1,0,1])
     ]);
 
     const product = B.multiply(C);
