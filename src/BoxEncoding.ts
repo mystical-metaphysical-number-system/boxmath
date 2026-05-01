@@ -28,13 +28,28 @@
  *   chi(3)([[3]],[[5]]) = [[15]]      αₘ × αₙ = αₘₙ
  */
 
-// Box is the common supertype — all levels are arrays of boxes.
-// Uses unknown[] rather than a circular type alias to keep TypeScript happy.
-export type Box = unknown[];
-export type Zero = [];
-export type Natural = Zero[];
-export type Polynumber = Natural[];
-export type Multinumber = Polynumber[];
+// _Prev[D] = D-1 for the depth arithmetic in Box<D>.
+type _Prev = [never, 0, 1, 2, 3, 4];
+
+/** Depth index for a box level. */
+export type Depth = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * Box<D> — a box at depth D.
+ *   Box<0> = []           the empty box (zero)
+ *   Box<1> = [][]         array of zeros  (Natural)
+ *   Box<2> = [][][]       array of Naturals  (Polynumber)
+ *   Box<3> = [][][][]     array of Polynumbers  (Multinumber)
+ *   Box<4> = [][][][][]   array of Multinumbers  (Metanumber)
+ */
+export type Box<D extends Depth = Depth> =
+  D extends 0 ? [] : Box<_Prev[D]>[];
+
+export type Zero        = Box<0>;
+export type Natural     = Box<1>;
+export type Polynumber  = Box<2>;
+export type Multinumber = Box<3>;
+export type Metanumber  = Box<4>;
 
 /** The empty box — the foundation */
 export function zero(): Zero {
@@ -75,15 +90,10 @@ export function multinumber(polys: Polynumber[]): Multinumber {
  *   chi(2)(poly([1,2,3]), poly([2,4])) = poly([2,4,4,8,6,12])[caret ∧ from paper §6]
  *   chi(2)([[m]], [[n]])               = [[m+n]]            [αₘ ∧ αₙ = αₘ₊ₙ]
  */
-export function chi(n: number, a: Box, b: Box): Box {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function chi(n: number, a: any[], b: any[]): any[] {
   if (n === 0) return [...a, ...b];
-  const result: Box = [];
-  for (const x of a) {
-    for (const y of b) {
-      result.push(chi(n - 1, x as Box, y as Box));
-    }
-  }
-  return result;
+  return a.flatMap((x: any) => b.map((y: any) => chi(n - 1, x, y)));
 }
 
 export function readNatural(n: Natural): number {
