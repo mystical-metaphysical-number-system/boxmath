@@ -1,112 +1,87 @@
 # boxmath
 
-TypeScript implementation of [Wildberger's Box Arithmetic](https://www.youtube.com/watch?v=...) — a purely integer foundation for polynomial algebra, linear algebra, and beyond.
+TypeScript implementation of [Wildberger's Box Arithmetic](https://www.youtube.com/watch?v=...) — a purely integer foundation for polynomial algebra, built from nothing but nested emptiness.
 
-All values are `bigint`. There is no fixed-point scaling, no division in core operations, and no floating point anywhere. The library is designed for direct composition with [`BoxMath.sol` and `PixelMath.sol`](https://github.com/mystical-metaphysical-number-system/hardhat) — identical semantics across TypeScript and Solidity.
+## Two implementations, one idea
+
+The library is split into two modules that both express the same hierarchy — `Zero → Natural → Polynumber → Multinumber → Metanumber` — but make opposite tradeoffs about how a number is spelled:
+
+- **`boxmath/pure`** is the literal encoding: a quantity *is* nested emptiness, nothing else. `0` is `[]`, `3` is `[[],[],[]]`. This is honest to the paper but expensive — a number `n` costs `n` actual boxes to build, so its size scales `O(n)`.
+- **`boxmath/applied`** keeps the spirit — the same hierarchy, the same recursive shape — but a leaf is a plain JavaScript `bigint` instead of a chomped-out array of empty boxes. `3` is just `3n`, not three nested arrays. Arithmetic runs at native speed and stays exact (`bigint`, never `number`, so there's no floating point drift), at the cost of no longer being "pure" — the numbers are a primitive, not a construction.
+
+Pick `pure` when the construction itself is the point; pick `applied` for everything else.
+
+```ts
+// [] == 0 and [[]] == 1 are both true in plain JavaScript — array-to-
+// primitive coercion happens to agree with the box encoding for free.
+```
 
 ## Install
 
 ```bash
-npm install boxmath
-```
-const zero = []; = 0
-
-const one = [[]] = [0] = 1
-const two = [[], []] = [0, 0] = 2 = two.length
-
-const rawAdder = (a, b) = [...a, ...b]
-const alpha = [ [ [] ] ]= [ [ 0 ] ] = [ 1 ] 
-const alphaAlphaSquared = [ [ [ [], [] ] ] ]
-// btw
-// if ( 0 == [] ) // true 
-
-// if ([[]] == 1) // true // one can appreciate
-
-
-
-
-
-## Primitives
-
-
-
-### Polynomials — `Polynumber`, `Multinumber`
-
-```ts
-import { Polynumber, Multinumber, pow, caretProduct } from 'boxmath';
-
-// 1 + 3x + x²
-const p = new Multinumber([
-  new Polynumber(1n, []),
-  new Polynumber(3n, [1]),
-  new Polynumber(1n, [2]),
-]);
-
-p.evaluate([5n]);          // 41n  (1 + 15 + 25)
-p.truncate(1).evaluate([5n]);  // 16n  (1 + 15)
-
-// Constant-product invariant xy
-const k = new Multinumber([new Polynumber(1n, [1, 1])]);
-k.evaluate([100n, 200n]);  // 20000n
+npm install
 ```
 
-### Ordered pairs — `Pixel`
+This is an npm workspace — one install at the repo root covers the library (`packages/boxmath`) and the `studio` visualizer together.
 
-A pixel `[m, n]` is a 2-listbox of natural numbers. Pixels support a non-commutative, partial **pixel product** that mirrors matrix index composition:
+## `boxmath/pure`
 
 ```ts
-import { Pixel } from 'boxmath';
+import { toBox, fromBox } from 'boxmath/pure';
 
-new Pixel(3n, 4n).pixelProduct(new Pixel(4n, 11n));  // Pixel(3n, 11n)
-new Pixel(3n, 4n).pixelProduct(new Pixel(5n, 11n));  // null — nothing
-
-// Pythagorean triples: pixel [m,n] with m > n → (m²-n², 2mn, m²+n²)
-new Pixel(2n, 1n).pythagoreanTriple();  // [3n, 4n, 5n]
-new Pixel(3n, 2n).pythagoreanTriple();  // [5n, 12n, 13n]
+toBox(0);              // []
+toBox(3);               // [[],[],[]]
+fromBox([[],[],[]]);     // 3
 ```
 
-### Coefficient vectors — `Vexel`
+That's the whole surface: `toBox(n)` builds the literal box form of `n`; `fromBox(box)` reads a box's magnitude back out (just its length). No `chi`/combine operator yet — see the chat history if you want to pick that back up.
+
+## `boxmath/applied`
 
 ```ts
-import { Vexel } from 'boxmath';
+import { add, multiply, caret, evaluate, getRank, getDegree, findType, toRootedTree } from 'boxmath/applied';
 
-const v1 = Vexel.fromArray([1n, 2n, 3n]);
-const v2 = Vexel.fromArray([4n, 5n, 6n]);
-v1.dot(v2);   // 32n
-v1.add(v2).toArray(3);   // [5n, 7n, 9n]
+// add/multiply/caret all take two boxes (arrays of bigint) and return one
+add([1n, 2n, 3n], [4n, 5n, 6n]);       // [1n,2n,3n,4n,5n,6n]      — union
+multiply([1n, 2n, 3n], [4n, 5n, 6n]);  // [5n,6n,7n,6n,7n,8n,7n,8n,9n]  — every pair, combined by +
+caret([1n, 2n, 3n], [4n, 5n, 6n]);     // [4n,5n,6n,8n,10n,12n,12n,15n,18n] — every pair, combined by *
+
+// evaluate collapses a box's bigints into one running sum; anything that
+// isn't a bigint is left alone and carried through untouched
+evaluate([1n, 2n, 3n]);                // 6n
+
+// getRank / findType read the hierarchy dynamically off a value's shape —
+// a plain bigint is rank 0 (Zero or Natural), each level of array nesting
+// adds one rank (Polynumber, Multinumber, Metanumber, ...)
+findType(0n);                // 'Zero'
+findType(5n);                // 'Natural'
+findType([1n, 2n, 3n]);      // 'Polynumber'
+findType([[1n, 2n], [3n]]);  // 'Multinumber'
+getRank([[1n, 2n], [3n]]);   // 2
+getDegree([1n, 2n, 3n]);     // 3n — same recursive shape at every rank
+
+// toRootedTree turns a box into a plain { value, type, children } tree —
+// renderer-agnostic, no positions or three.js specifics, just a shape a
+// layout function can walk
+toRootedTree([1n, 2n, 3n]);
+// { value: null, type: 'Polynumber', children: [
+//     { value: 1n, type: 'Natural', children: [] },
+//     { value: 2n, type: 'Natural', children: [] },
+//     { value: 3n, type: 'Natural', children: [] } ] }
 ```
 
-### Sparse matrices — `Maxel`
+## Studio
 
-```ts
-import { Pixel, Maxel } from 'boxmath';
+`studio/` is a Vite + React + react-three-fiber app that renders a box as a rooted tree in 3D — toggle between Pure and Applied to see the same box rendered both ways, including a click-to-build editor for constructing Pure boxes directly out of units and anti-units. See [`GETTING_STARTED.md`](./GETTING_STARTED.md) for a from-scratch setup guide (written for a non-JS audience), or if your machine is already set up:
 
-// Matrix multiplication via pixel product (Examples 22 & 23 from the paper)
-const M = Maxel.fromPixels([new Pixel(0n, 0n), new Pixel(1n, 0n)]);
-const N = Maxel.fromPixels([new Pixel(1n, 0n), new Pixel(0n, 2n), new Pixel(2n, 3n)]);
-
-M.maxelProduct(N).get(0n, 2n);  // 1n
-M.maxelProduct(N).get(1n, 2n);  // 1n
+```bash
+npm run dev:studio
 ```
 
 ## Development
 
 ```bash
-npm test              # run all tests
-npm run test:watch    # watch mode
-```
-
-Tests use Node's built-in test runner — no Jest, no Vitest, no extra dependencies.
-
-## Exports
-
-```ts
-import {
-  // Polynomials
-  Polynumber, Multinumber, pow, caretProduct,
-  // Ordered structures
-  Pixel, Vexel, Maxel,
-} from 'boxmath';
+npm test    # runs packages/boxmath's test suite (node's built-in test runner — no Jest, no Vitest)
 ```
 
 ## Docs
