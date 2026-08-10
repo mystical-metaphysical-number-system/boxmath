@@ -9,8 +9,26 @@ All values are `bigint`. There is no fixed-point scaling, no division in core op
 ```bash
 npm install boxmath
 ```
+const zero = []; = 0
+
+const one = [[]] = [0] = 1
+const two = [[], []] = [0, 0] = 2 = two.length
+
+const rawAdder = (a, b) = [...a, ...b]
+const alpha = [ [ [] ] ]= [ [ 0 ] ] = [ 1 ] 
+const alphaAlphaSquared = [ [ [ [], [] ] ] ]
+// btw
+// if ( 0 == [] ) // true 
+
+// if ([[]] == 1) // true // one can appreciate
+
+
+
+
 
 ## Primitives
+
+
 
 ### Polynomials — `Polynumber`, `Multinumber`
 

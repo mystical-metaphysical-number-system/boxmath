@@ -7,6 +7,8 @@ export class Polynumber {
   constructor(coefficient: bigint, exponents: number[]) {
     this.coefficient = coefficient;
     this.exponents = [...exponents];
+    console.log("this init")
+    console.log('this', this)
   }
 
   get degree(): number {

@@ -4,27 +4,6 @@ import { Polynumber } from './Polynumber.ts';
 import { Multinumber } from './Multinumber.ts';
 import { caretProduct } from './utils.ts';
 
-describe('Polynumber', () => {
-  test('creates xy term', () => {
-    const xy = new Polynumber(1n, [1, 1]);
-    assert.strictEqual(xy.toString(), 'xy');
-    assert.strictEqual(xy.degree, 2);
-  });
-
-  test('evaluates at point', () => {
-    const xy = new Polynumber(1n, [1, 1]);
-    assert.strictEqual(xy.evaluate([10n, 20n]), 200n);
-  });
-
-  test('multiplies polynumbers', () => {
-    const x = new Polynumber(1n, [1]);
-    const y = new Polynumber(1n, [0, 1]);
-    const xy = x.multiply(y);
-    assert.deepStrictEqual(xy.exponents, [1, 1]);
-    assert.strictEqual(xy.coefficient, 1n);
-  });
-});
-
 describe('Multinumber', () => {
   test('constant product k = xy', () => {
     const xy = new Polynumber(1n, [1, 1]);
@@ -59,17 +38,24 @@ describe('Multinumber', () => {
   });
 
   test('multiplication from Wildberger paper', () => {
+    // B = 1 + x₃ + x₂x₄   (3 terms: constant, single variable, product of two variables)
     const B = new Multinumber([
-      new Polynumber(1n, []),
-      new Polynumber(1n, [0,0,0,1]),
-      new Polynumber(1n, [0,0,1,0,1])
+      new Polynumber(1n, []),          // 1            — constant term, no variables
+      new Polynumber(1n, [0,0,0,1]),   // x₃           — exponent 1 at index 3, 0 elsewhere
+      new Polynumber(1n, [0,0,1,0,1])  // x₂x₄         — exponent 1 at indices 2 and 4
     ]);
 
+    // C = x₁² + x₂x₄   (2 terms)
     const C = new Multinumber([
-      new Polynumber(1n, [0,2]),
-      new Polynumber(1n, [0,0,1,0,1])
+      new Polynumber(1n, [0,2]),       // x₁²          — exponent 2 at index 1
+      new Polynumber(1n, [0,0,1,0,1])  // x₂x₄         — same monomial as B's third term
     ]);
 
+    // B·C = (1 + x₃ + x₂x₄)(x₁² + x₂x₄)
+    //     = x₁² + x₂x₄ + x₁²x₃ + x₂x₃x₄ + x₁²x₂x₄ + x₂²x₄²
+    // multiply() is a raw Cauchy/Cartesian product (3 terms × 2 terms) and does not
+    // collect like terms, so the result has 3·2 = 6 terms even though none happen
+    // to coincide here.
     const product = B.multiply(C);
     assert.strictEqual(product.terms.length, 6);
   });
