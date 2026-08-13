@@ -1,9 +1,12 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { highlightPure } from './lib/pure'
 import { getSelectionOffsets, setCaretOffset } from './lib/domSelection'
 import { POSITIVE_COLOR, NEGATIVE_COLOR } from './lib/colors'
+import type { DemoBox } from './lib/demoBox'
+import type { BoxBuilder } from './useBoxBuilder'
 
 export type Mode = 'applied' | 'pure'
+export type PureEditMode = 'text' | 'clicker'
 
 export type AppliedInfo = { type: string; horizon: number; degree: string; size: number; leaves: number }
 export type PureInfo = { evaluate: string; netValue: string; height: number; size: number; leaves: number }
@@ -15,23 +18,70 @@ const MODE_EXPLAINER: Record<Mode, string> = {
     "Wildberger's original encoding: click to place your cursor, then paste a unit — or select text and wrap it in a box instead.",
 }
 
+type NotationProps = { node: DemoBox; selectedId: number | null; onSelect: (id: number | null) => void }
+
+// The bracket text and the clicker's 3D boxes are two views of the same
+// tree — this renders one bracket pair per node, each independently
+// clickable and highlighted in sync with its 3D box, via the same
+// selectedId/onSelect the scene uses. Mirrors the app's real pure-mode
+// syntax: `]` for a plain box, `]ᵃ` for one marked anti.
+function Notation({ node, selectedId, onSelect }: NotationProps) {
+  return (
+    <span
+      className={node.id === selectedId ? 'selected' : undefined}
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect(node.id)
+      }}
+    >
+      [
+      {node.children.map((child, i) => (
+        <Fragment key={child.id}>
+          {i > 0 ? ' ' : ''}
+          <Notation node={child} selectedId={selectedId} onSelect={onSelect} />
+        </Fragment>
+      ))}
+      {node.anti ? ']ᵃ' : ']'}
+    </span>
+  )
+}
+
 type Props = {
+  width: number
   mode: Mode
   setMode: (m: Mode) => void
   text: string
   setText: (t: string) => void
   error: string | null
+  pureEditMode: PureEditMode
+  setPureEditMode: (m: PureEditMode) => void
   pureText: string
   setPureText: (t: string) => void
   pureError: string | null
+  boxBuilder: BoxBuilder
   info: AppliedInfo | PureInfo | null
 }
 
-// This is the single source of both text inputs — both viewers below read
-// the same `mode`/`text`/`pureText` state from the parent, so a keystroke
-// here recomputes both of them off one shared value in the same render
-// pass instead of two independently-fed copies drifting apart.
-export default function InputPanel({ mode, setMode, text, setText, error, pureText, setPureText, pureError, info }: Props) {
+// This is the single source of every input — both viewers below read the
+// same `mode`/`text`/`pureText`/clicker-tree state from the parent, so an
+// edit here (typed or clicked) recomputes both of them off one shared
+// value in the same render pass instead of independently-fed copies
+// drifting apart.
+export default function InputPanel({
+  width,
+  mode,
+  setMode,
+  text,
+  setText,
+  error,
+  pureEditMode,
+  setPureEditMode,
+  pureText,
+  setPureText,
+  pureError,
+  boxBuilder,
+  info,
+}: Props) {
   const [hasSelection, setHasSelection] = useState(false)
   const pureEditorRef = useRef<HTMLDivElement>(null)
   const pendingCaret = useRef<number | null>(null)
@@ -62,11 +112,12 @@ export default function InputPanel({ mode, setMode, text, setText, error, pureTe
       setCaretOffset(editor, pendingCaret.current)
       pendingCaret.current = null
     }
-    // mode is a dependency too: the editor div only exists while
-    // mode === 'pure', so switching into that mode is what first attaches
-    // pureEditorRef — without mode here, that remount wouldn't re-run this
-    // effect unless pureText also happened to change at the same time.
-  }, [pureText, mode])
+    // mode/pureEditMode are dependencies too: the editor div only exists
+    // while mode === 'pure' && pureEditMode === 'text', so switching into
+    // that combination is what first attaches pureEditorRef — without
+    // these here, that remount wouldn't re-run this effect unless
+    // pureText also happened to change at the same time.
+  }, [pureText, mode, pureEditMode])
 
   const updateSelectionState = () => {
     const editor = pureEditorRef.current
@@ -117,7 +168,7 @@ export default function InputPanel({ mode, setMode, text, setText, error, pureTe
   }
 
   return (
-    <aside id="panel">
+    <aside id="panel" style={{ width }}>
       <h1>boxmath studio</h1>
 
       <div id="mode-toggle">
@@ -138,48 +189,96 @@ export default function InputPanel({ mode, setMode, text, setText, error, pureTe
         </>
       ) : (
         <>
-          <p>
-            Click to place your cursor, then paste a unit. Select some text instead and the same buttons wrap it in
-            a box.
-          </p>
-          <div id="pure-buttons">
+          <div id="pure-edit-toggle">
             <button
               type="button"
-              className="add-box"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                if (pureText.length === 0) return bootstrapBox(false)
-                return hasSelection ? wrapSelection(false) : insertAtCursor('0')
-              }}
+              className={pureEditMode === 'clicker' ? 'active' : ''}
+              onClick={() => setPureEditMode('clicker')}
             >
-              {pureText.length === 0 || hasSelection ? '[ ]' : '0'}
+              clicker
             </button>
             <button
               type="button"
-              className="add-anti-box"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                if (pureText.length === 0) return bootstrapBox(true)
-                return hasSelection ? wrapSelection(true) : insertAtCursor('0ᵃ')
-              }}
+              className={pureEditMode === 'text' ? 'active' : ''}
+              onClick={() => setPureEditMode('text')}
             >
-              {pureText.length === 0 || hasSelection ? '[ ]ᵃ' : '0ᵃ'}
-            </button>
-            <button type="button" className="reset" onMouseDown={(e) => e.preventDefault()} onClick={resetPureText}>
-              reset
+              textbox
             </button>
           </div>
-          <div
-            id="pure-editor"
-            ref={pureEditorRef}
-            contentEditable
-            suppressContentEditableWarning
-            onInput={handlePureInput}
-            onSelect={updateSelectionState}
-            onMouseUp={updateSelectionState}
-            onKeyUp={updateSelectionState}
-          />
-          {pureError && <p className="error">{pureError}</p>}
+
+          {pureEditMode === 'clicker' ? (
+            <>
+              <p>
+                Click a box (here or in the scene above) to move the cursor. Nest/add-box target it; delete removes
+                it and everything inside it.
+              </p>
+              <div className="box-nest-controls">
+                <button type="button" onClick={boxBuilder.deleteAction} disabled={!boxBuilder.canDelete}>
+                  delete
+                </button>
+                <span className="box-nest-notation">
+                  <Notation node={boxBuilder.root} selectedId={boxBuilder.selectedId} onSelect={boxBuilder.setSelectedId} />
+                </span>
+                <button type="button" className="positive" onClick={() => boxBuilder.addBox(false)} disabled={!boxBuilder.canAddBox}>
+                  add box
+                </button>
+                <button type="button" className="negative" onClick={() => boxBuilder.addBox(true)} disabled={!boxBuilder.canAddBox}>
+                  add antibox
+                </button>
+                <button type="button" className="positive" onClick={() => boxBuilder.nest(false)} disabled={!boxBuilder.canNest}>
+                  nest
+                </button>
+                <button type="button" className="negative" onClick={() => boxBuilder.nest(true)} disabled={!boxBuilder.canNest}>
+                  antinest
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                Click to place your cursor, then paste a unit. Select some text instead and the same buttons wrap it
+                in a box.
+              </p>
+              <div id="pure-buttons">
+                <button
+                  type="button"
+                  className="add-box"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (pureText.length === 0) return bootstrapBox(false)
+                    return hasSelection ? wrapSelection(false) : insertAtCursor('0')
+                  }}
+                >
+                  {pureText.length === 0 || hasSelection ? '[ ]' : '0'}
+                </button>
+                <button
+                  type="button"
+                  className="add-anti-box"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (pureText.length === 0) return bootstrapBox(true)
+                    return hasSelection ? wrapSelection(true) : insertAtCursor('0ᵃ')
+                  }}
+                >
+                  {pureText.length === 0 || hasSelection ? '[ ]ᵃ' : '0ᵃ'}
+                </button>
+                <button type="button" className="reset" onMouseDown={(e) => e.preventDefault()} onClick={resetPureText}>
+                  reset
+                </button>
+              </div>
+              <div
+                id="pure-editor"
+                ref={pureEditorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={handlePureInput}
+                onSelect={updateSelectionState}
+                onMouseUp={updateSelectionState}
+                onKeyUp={updateSelectionState}
+              />
+              {pureError && <p className="error">{pureError}</p>}
+            </>
+          )}
         </>
       )}
 

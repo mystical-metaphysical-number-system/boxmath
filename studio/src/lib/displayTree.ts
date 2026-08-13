@@ -2,6 +2,12 @@
 // everything downstream (rooted-tree view, box view, coloring) reads only
 // this, never the mode-specific parse trees.
 export type DisplayNode = {
+  // Only set when the tree came from the clicker (see lib/demoBox.ts's
+  // demoBoxToDisplayNode) — the same id the 3D scene's DemoBox nodes
+  // carry, which is what lets the rooted tree and the clicker highlight
+  // the same node in sync. Absent (undefined) for applied/typed-pure
+  // trees, which have no such identity to share.
+  id?: number
   value: bigint | null
   label?: string | null
   type: string

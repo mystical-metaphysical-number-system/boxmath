@@ -5,13 +5,33 @@
 }
 
 #panel {
-  width: 280px;
   flex: none;
   padding: 20px;
   box-sizing: border-box;
   text-align: left;
-  border-right: 1px solid var(--border);
   overflow-y: auto;
+}
+
+.panel-resize-handle {
+  flex: none;
+  width: 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+}
+
+.panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: var(--border);
+}
+
+.panel-resize-handle:hover::after,
+.panel-resize-handle.dragging::after {
+  background: var(--accent);
 }
 
 #panel h1 {
@@ -206,26 +226,54 @@
   display: block;
 }
 
-.box-view-wrap {
-  position: relative;
-  width: 100%;
-  height: 100%;
+#pure-edit-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+#pure-edit-toggle button {
+  flex: 1;
+  padding: 5px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--code-bg);
+  border: none;
+  cursor: pointer;
+}
+
+#pure-edit-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.box-nest-notation {
+  display: block;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-h);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--code-bg);
+  margin-bottom: 10px;
+  word-break: break-all;
 }
 
 .box-nest-controls {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  z-index: 1;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .box-nest-controls button {
   font: inherit;
   font-size: 12px;
-  padding: 4px 10px;
+  padding: 5px 8px;
   border-radius: 4px;
   border: 1px solid var(--border);
   background: var(--code-bg);
@@ -248,12 +296,6 @@
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.08);
   color: #ef4444;
-}
-
-.box-nest-notation {
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--text-h);
 }
 
 .box-nest-notation span {
