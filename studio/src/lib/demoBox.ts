@@ -50,6 +50,43 @@ export function notationOf(node: DemoBox): string {
   return '[' + node.children.map(notationOf).join(' ') + (node.anti ? ']ᵃ' : ']')
 }
 
+// A node's shape ignoring its own top-level sign, but including every
+// nested descendant's — exactly the shape a node and its anti-object
+// share (the board's Mᵃ: M with only the outer sign flipped, nothing
+// underneath touched). Sorted so it's insensitive to child order — boxes
+// are msets, not ordered lists, so two children in either order are the
+// same box.
+function magnitudeKey(node: DemoBox): string {
+  const childKeys = node.children.map(structureKey).sort()
+  return `[${childKeys.join(',')}]`
+}
+
+function structureKey(node: DemoBox): string {
+  return `${node.anti ? 'a' : 'p'}${magnitudeKey(node)}`
+}
+
+// [M Mᵃ] = [] — a box and its exact anti-object, sitting together as
+// siblings, annihilate. Recurses into every child first so nested
+// cancellations resolve before this level's own are checked, then
+// greedily pairs off same-magnitude, opposite-sign children one at a
+// time — so three copies of M against one Mᵃ leaves two M's behind, not
+// zero, rather than either over- or under-cancelling.
+export function reduceBox(node: DemoBox): DemoBox {
+  const remaining = node.children.map(reduceBox)
+  const kept: DemoBox[] = []
+  while (remaining.length > 0) {
+    const x = remaining.shift()!
+    const xKey = magnitudeKey(x)
+    const matchIndex = remaining.findIndex((y) => y.anti !== x.anti && magnitudeKey(y) === xKey)
+    if (matchIndex === -1) {
+      kept.push(x)
+    } else {
+      remaining.splice(matchIndex, 1)
+    }
+  }
+  return { ...node, children: kept }
+}
+
 // A DemoBox is already a strict subset of PureNode's shape — every node
 // is PureNode's 'box' variant, just never its 'unit' variant, since the
 // clicker has no way to create a bare unit. Converting lets the clicker's

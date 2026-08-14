@@ -1,4 +1,4 @@
-import type { DemoBox } from './demoBox'
+import { reduceBox, type DemoBox } from './demoBox'
 
 export type Operator = '+' | 'x' | '^'
 export const OPERATORS: Operator[] = ['+', 'x', '^']
@@ -49,19 +49,27 @@ function cloneWithFreshIds(node: DemoBox, nextId: () => number): DemoBox {
 // nested the two terms as sub-boxes instead — a reasonable-looking guess
 // straight off the whiteboard picture, but not what "sizes multiply"
 // actually means; nesting increases rank, it doesn't multiply a count.)
+//
+// Every case is wrapped in reduceBox before returning — [M Mᵃ] = [], and
+// that's a property of the *result*, not of any one operator: whichever
+// combinator produced a term and its exact anti-object as siblings, they
+// annihilate the same way. This is what makes the final answer canonical
+// rather than just "technically correct but not fully simplified" — e.g.
+// [[]] + [[]ᵃ] builds [[] []ᵃ] from the raw concatenation, and reduceBox
+// is what collapses that the rest of the way down to [].
 export function applyOperator(op: Operator, a: DemoBox, b: DemoBox, nextId: () => number): DemoBox {
   switch (op) {
     case '+':
-      return {
+      return reduceBox({
         id: nextId(),
         anti: false,
         children: [
           ...a.children.map((c) => cloneWithFreshIds(c, nextId)),
           ...b.children.map((c) => cloneWithFreshIds(c, nextId)),
         ],
-      }
+      })
     case 'x':
-      return {
+      return reduceBox({
         id: nextId(),
         anti: false,
         children: a.children.flatMap((ai) =>
@@ -74,9 +82,9 @@ export function applyOperator(op: Operator, a: DemoBox, b: DemoBox, nextId: () =
             ],
           })),
         ),
-      }
+      })
     case '^':
-      return {
+      return reduceBox({
         id: nextId(),
         anti: false,
         children: a.children.flatMap((ai) =>
@@ -86,7 +94,7 @@ export function applyOperator(op: Operator, a: DemoBox, b: DemoBox, nextId: () =
             children: ai.children.flatMap(() => bi.children.map((c) => cloneWithFreshIds(c, nextId))),
           })),
         ),
-      }
+      })
   }
 }
 
@@ -96,11 +104,28 @@ export function applyOperator(op: Operator, a: DemoBox, b: DemoBox, nextId: () =
 // pairs first" reading of the board's distributive identities
 // (A x (B+C) = (AxB)+(AxC)) — the pairing applyOperator's x/^ cases
 // build is the same, just shown before the merge/multiply step collapses
-// each pair down to a single term. + has no pairing to distribute in the
-// first place (it's a union, not a product), so it's identical to
-// applyOperator('+', ...) here.
+// each pair down to a single term.
+//
+// Deliberately *not* reduced (unlike applyOperator) — the whole point of
+// this stage is showing the raw, unsimplified expansion, cancelling
+// pairs included, before evaluation collapses them away.
+//
+// + has no pairing to distribute in the first place (it's a union, not a
+// product) — its case here builds the same raw concatenation
+// applyOperator('+', ...) does, just without that function's own
+// reduceBox step, rather than delegating to it and inheriting a
+// reduction this stage isn't supposed to have.
 export function distributeOperator(op: Operator, a: DemoBox, b: DemoBox, nextId: () => number): DemoBox {
-  if (op === '+') return applyOperator('+', a, b, nextId)
+  if (op === '+') {
+    return {
+      id: nextId(),
+      anti: false,
+      children: [
+        ...a.children.map((c) => cloneWithFreshIds(c, nextId)),
+        ...b.children.map((c) => cloneWithFreshIds(c, nextId)),
+      ],
+    }
+  }
   return {
     id: nextId(),
     anti: false,
