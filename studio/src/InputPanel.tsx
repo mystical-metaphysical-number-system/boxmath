@@ -235,25 +235,49 @@ export default function InputPanel({
             <>
               <p>
                 Click a box — its bracket text, or its own 3D content — to make it active; nest/add-box/delete then
-                target whichever box that was. Pick an operator to bring in a second box; x/^ click again to step
-                from the un-merged pairs to the evaluated result, and again to clear.
+                target whichever box that was. Pick an operator to bring in a second box.
               </p>
 
               <div id="box-operator-row">
-                {OPERATORS.map((op) => (
-                  <button
-                    key={op}
-                    type="button"
-                    className={operator === op ? 'active' : ''}
-                    onClick={() => onOperatorClick(op)}
-                  >
-                    {op}
-                  </button>
-                ))}
+                {OPERATORS.map((op) => {
+                  const isActive = operator === op
+                  // A visible cue right on the button, not just in body
+                  // text elsewhere — x/^'s distribute stage is a real
+                  // second click waiting to happen, easy to miss
+                  // otherwise (the big call-to-action below is the other
+                  // half of this fix — two different-looking places to
+                  // find the same action).
+                  const hasNextStage = isActive && op !== '+' && stage === 'distribute'
+                  return (
+                    <button key={op} type="button" className={isActive ? 'active' : ''} onClick={() => onOperatorClick(op)}>
+                      {op}
+                      {hasNextStage && <span className="next-stage-hint"> ›</span>}
+                    </button>
+                  )
+                })}
               </div>
 
-              {operator && operator !== '+' && (
-                <p id="operator-stage-indicator">{stage === 'distribute' ? 'showing: pairs (unmerged)' : 'showing: evaluated result'}</p>
+              {operator && (
+                <button type="button" id="operator-stage-indicator" onClick={() => onOperatorClick(operator)}>
+                  {operator === '+' ? (
+                    <>
+                      showing the union — <strong>click to clear</strong>
+                    </>
+                  ) : (
+                    <>
+                      <span className="stage-step">step {stage === 'distribute' ? '1' : '2'} of 2</span>
+                      {stage === 'distribute' ? (
+                        <>
+                          showing un-merged pairs — <strong>click for the evaluated result</strong>
+                        </>
+                      ) : (
+                        <>
+                          showing the evaluated result — <strong>click to clear</strong>
+                        </>
+                      )}
+                    </>
+                  )}
+                </button>
               )}
 
               <div className="box-nest-notation">

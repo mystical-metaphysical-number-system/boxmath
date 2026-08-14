@@ -314,6 +314,15 @@
   color: #fff;
 }
 
+.next-stage-hint {
+  display: inline-block;
+  font-weight: 700;
+  /* A little larger and nudged up — reads as "there's more here", not
+     just decorative punctuation tacked onto the label. */
+  font-size: 1.15em;
+  transform: translateY(-1px);
+}
+
 .box-nest-notation {
   display: flex;
   align-items: center;
@@ -342,10 +351,43 @@
   margin: -4px 0 10px;
 }
 
+/* A real button, not quiet body text — this is the fix for "I had no
+   idea I could click that twice": the same action the operator button
+   itself does, restated as an explicit, impossible-to-miss
+   call-to-action, styled distinctly enough from the other controls that
+   it reads as "click me next" on sight. */
 #operator-stage-indicator {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  font: inherit;
   font-size: 12px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+#operator-stage-indicator:hover {
+  background: rgba(59, 130, 246, 0.16);
+}
+
+#operator-stage-indicator .stage-step {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--accent);
-  margin: -4px 0 10px;
+  margin-bottom: 2px;
+}
+
+#operator-stage-indicator strong {
+  color: var(--accent);
 }
 
 .box-nest-controls {
