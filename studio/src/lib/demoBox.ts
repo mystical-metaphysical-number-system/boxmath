@@ -11,12 +11,37 @@ export type DemoBox = { id: number; anti: boolean; children: DemoBox[] }
 export const MAX_DEPTH = 8
 export const MAX_NODES = 24
 
+// Shared with BoxScene's rendering: a leaf box is INNER_SIZE across, and
+// GAP is the constant margin a box keeps around whatever's nested
+// directly inside it. Living here (not BoxScene.tsx) is what lets
+// boxSize below be plain DemoBox math, importable anywhere a box's
+// footprint needs to be known — e.g. App.tsx positioning two boxes side
+// by side without ever overlapping, however large either grows.
+export const INNER_SIZE = 1
+export const GAP = 0.4
+
 export function treeDepth(node: DemoBox): number {
   return node.children.length === 0 ? 0 : 1 + Math.max(...node.children.map(treeDepth))
 }
 
 export function countNodes(node: DemoBox): number {
   return 1 + node.children.reduce((sum, c) => sum + countNodes(c), 0)
+}
+
+// A box's footprint: a leaf is just INNER_SIZE; a parent has to be wide
+// enough to lay its children out in a row with a GAP between each pair
+// and a GAP margin on both outer edges. One child collapses this to
+// `childSize + 2*GAP` — the same "outer grows to fit" rule generalized to
+// N children instead of exactly one. It's also why every ancestor of an
+// edited node grows, not just its immediate parent: size is defined
+// bottom-up (sum of children's sizes + gaps), so a change at any node
+// recomputes every size above it up to the root, through this same
+// formula.
+export function boxSize(node: DemoBox): number {
+  if (node.children.length === 0) return INNER_SIZE
+  const childSizes = node.children.map(boxSize)
+  const rowWidth = childSizes.reduce((sum, s) => sum + s, 0) + GAP * (childSizes.length - 1)
+  return rowWidth + 2 * GAP
 }
 
 // Mirrors the app's real pure-mode syntax: `]` for a plain box, `]ᵃ` for

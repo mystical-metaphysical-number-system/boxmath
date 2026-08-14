@@ -1,19 +1,9 @@
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { Canvas, type ThreeEvent } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import type { Mesh } from 'three'
-import { type DemoBox, treeDepth } from './lib/demoBox'
+import { type DemoBox, treeDepth, boxSize, INNER_SIZE, GAP } from './lib/demoBox'
 
-const INNER_SIZE = 1
-// Constant margin a box keeps around whatever's nested directly inside
-// it, and the gap between siblings sitting in the same box. Every level
-// out (or every extra sibling) adds exactly this much — the gap between a
-// box and whatever's next to it never changes no matter how big the
-// structure gets. (The alternative — fit everything inside one
-// fixed-size outer box — is what the old BoxLayout did, and why deep
-// nesting used to shrink into invisible slivers: a fixed outer forces
-// its contents to shrink instead of letting the outer grow.)
-const GAP = 0.4
 const LAYER_HEIGHT = 0.3
 
 // Same hues as POSITIVE_COLOR/NEGATIVE_COLOR in lib/colors.ts. Not
@@ -23,22 +13,6 @@ const LAYER_HEIGHT = 0.3
 // used everywhere else in the app.
 const POSITIVE_HUE = 142
 const NEGATIVE_HUE = 4
-
-// A box's footprint: a leaf is just INNER_SIZE; a parent has to be wide
-// enough to lay its children out in a row with a GAP between each pair
-// and a GAP margin on both outer edges. One child collapses this to
-// `childSize + 2*GAP` — the same "outer grows to fit" rule generalized to
-// N children instead of exactly one. It's also why every ancestor of an
-// edited node grows, not just its immediate parent: size is defined
-// bottom-up (sum of children's sizes + gaps), so a change at any node
-// recomputes every size above it up to the root, through this same
-// formula.
-function boxSize(node: DemoBox): number {
-  if (node.children.length === 0) return INNER_SIZE
-  const childSizes = node.children.map(boxSize)
-  const rowWidth = childSizes.reduce((sum, s) => sum + s, 0) + GAP * (childSizes.length - 1)
-  return rowWidth + 2 * GAP
-}
 
 type PositionedBox = { id: number; anti: boolean; cx: number; y: number; size: number; depth: number; color: string }
 
@@ -94,7 +68,7 @@ function layoutDemo(node: DemoBox, leftEdge: number, y: number, depth: number, m
 // A lone leaf root then renders centered at world x=0.
 const ROOT_LEFT = -INNER_SIZE / 2
 
-type BoxProps = { box: PositionedBox; selected: boolean; onSelect: (id: number | null) => void }
+type BoxProps = { box: PositionedBox; selected: boolean; onSelect?: (id: number | null) => void }
 
 // A real ref per box (not just a declarative color prop) is what makes
 // this clickable as a specific 3D object: r3f's pointer events already
@@ -103,7 +77,9 @@ type BoxProps = { box: PositionedBox; selected: boolean; onSelect: (id: number |
 // for free — stacked boxes higher up (deeper nesting) sit closer to the
 // camera and naturally win the hit test over the larger box beneath them.
 // stopPropagation keeps a click from also selecting the boxes *behind*
-// the one that was actually clicked.
+// the one that was actually clicked. onSelect is optional — a computed
+// result box (see App.tsx) has nothing to select into, it's read-only,
+// so it's rendered with no onSelect at all rather than a do-nothing stub.
 function Box({ box, selected, onSelect }: BoxProps) {
   const ref = useRef<Mesh>(null)
   return (
@@ -111,10 +87,12 @@ function Box({ box, selected, onSelect }: BoxProps) {
       ref={ref}
       position={[box.cx, box.y, 0]}
       onClick={(e: ThreeEvent<MouseEvent>) => {
+        if (!onSelect) return
         e.stopPropagation()
         onSelect(box.id)
       }}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        if (!onSelect) return
         e.stopPropagation()
         document.body.style.cursor = 'pointer'
       }}
@@ -128,11 +106,34 @@ function Box({ box, selected, onSelect }: BoxProps) {
   )
 }
 
-type NestedBoxesProps = { root: DemoBox; selectedId: number | null; onSelect: (id: number | null) => void }
+export type NestedBoxesProps = {
+  root: DemoBox
+  selectedId?: number | null
+  onSelect?: (id: number | null) => void
+  // Where this box's own left edge sits, in whatever coordinate space
+  // the caller is using — not a center. NestedBoxes is left-edge
+  // anchored internally (see layoutDemo's own comment: that's what makes
+  // "add box" stable), so its rendered footprint is exactly
+  // [leftEdge, leftEdge + boxSize(root)], never centered on this value.
+  // Defaults to ROOT_LEFT, reproducing the original single-box behavior
+  // (a lone leaf renders centered at world x=0) for callers that don't
+  // need explicit placement — App.tsx's multi-box equation layout passes
+  // this explicitly instead, positioning each box (and the operator/
+  // equals labels between them) by real edges rather than reverse-
+  // engineering a group offset around this default.
+  leftEdge?: number
+}
 
-function NestedBoxes({ root, selectedId, onSelect }: NestedBoxesProps) {
+// Just the box content — no Canvas, no camera, no lighting. This is the
+// piece useBoxBuilder hands back as `view`: a plain group of meshes that
+// drops into whatever <Canvas> it's mounted in, so multiple independent
+// box-builders can eventually share one scene (each its own `view`, at
+// its own offset) instead of each needing its own Canvas. Exported so
+// useBoxBuilder can import it without either file needing to know
+// anything about the other's internals beyond this one component.
+export function NestedBoxes({ root, selectedId, onSelect, leftEdge = ROOT_LEFT }: NestedBoxesProps) {
   const boxes: PositionedBox[] = []
-  layoutDemo(root, ROOT_LEFT, 0, 0, treeDepth(root), boxes)
+  layoutDemo(root, leftEdge, 0, 0, treeDepth(root), boxes)
 
   return (
     <>
@@ -143,26 +144,30 @@ function NestedBoxes({ root, selectedId, onSelect }: NestedBoxesProps) {
   )
 }
 
-type Props = { root: DemoBox; selectedId: number | null; onSelect: (id: number | null) => void }
+type BoxSceneProps = {
+  children: ReactNode
+  onPointerMissed?: () => void
+}
 
-// Purely a renderer: the "clicker" box-builder's state/editing logic
-// lives in useBoxBuilder, shared with the sidebar controls — this just
-// draws whatever tree it's handed and reports clicks back up. Always
-// shows the clicker's own tree, independent of whichever input
-// (Applied JSON / Pure text / Pure clicker) currently governs the rooted
-// tree below, so it stays usable as its own tool regardless of mode.
+// The "skin": Canvas, camera, lighting, controls — everything a box
+// `view` needs around it to actually render, but nothing about which
+// box(es) it's showing. Deliberately generic (children, not a `root`
+// prop) so it can host one view today and several side by side later
+// (box, operator, box, operator, result) without this component itself
+// changing — only the skin should need touching to reskin it, never the
+// box content.
 //
 // Camera sits at (0, 10, 0.01) rather than exactly (0, 10, 0) — straight
 // down the Y axis is a gimbal-lock singularity for lookAt/OrbitControls
 // (forward and up vectors go parallel there), so it's nudged a hair
 // off-axis while still reading as a top-down view.
-export default function BoxView({ root, selectedId, onSelect }: Props) {
+export default function BoxScene({ children, onPointerMissed }: BoxSceneProps) {
   return (
-    <Canvas className="viewer-canvas" camera={{ position: [0, 10, 0.01], fov: 50 }} onPointerMissed={() => onSelect(null)}>
+    <Canvas className="viewer-canvas" camera={{ position: [0, 10, 0.01], fov: 50 }} onPointerMissed={onPointerMissed}>
       <ambientLight intensity={1} />
       <directionalLight position={[5, 10, 5]} intensity={0.6} />
       <OrbitControls target={[0, 0, 0]} />
-      <NestedBoxes root={root} selectedId={selectedId} onSelect={onSelect} />
+      {children}
     </Canvas>
   )
 }

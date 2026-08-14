@@ -3,6 +3,8 @@ import { Billboard, Text } from '@react-three/drei'
 type Props = {
   position: [number, number, number]
   text: string
+  fontSize?: number
+  color?: string
 }
 
 // Billboard rotates its children to always face the camera, however the
@@ -13,17 +15,10 @@ type Props = {
 // properly depth-tested against the rest of the scene: a label behind a
 // nearer mesh actually gets occluded instead of floating on top of
 // everything regardless of what's in front of it.
-export default function NodeLabel({ position, text }: Props) {
+export default function NodeLabel({ position, text, fontSize = 0.22, color = '#1e1b4b' }: Props) {
   return (
     <Billboard position={position}>
-      <Text
-        fontSize={0.22}
-        color="#1e1b4b"
-        anchorX="center"
-        anchorY="bottom"
-        outlineWidth={0.012}
-        outlineColor="#ffffff"
-      >
+      <Text fontSize={fontSize} color={color} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor="#ffffff">
         {text}
       </Text>
     </Billboard>

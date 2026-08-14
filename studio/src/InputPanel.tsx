@@ -2,6 +2,7 @@ import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { highlightPure } from './lib/pure'
 import { getSelectionOffsets, setCaretOffset } from './lib/domSelection'
 import { POSITIVE_COLOR, NEGATIVE_COLOR } from './lib/colors'
+import { OPERATORS, type Operator } from './lib/boxOperations'
 import type { DemoBox } from './lib/demoBox'
 import type { BoxBuilder } from './useBoxBuilder'
 
@@ -18,27 +19,33 @@ const MODE_EXPLAINER: Record<Mode, string> = {
     "Wildberger's original encoding: click to place your cursor, then paste a unit — or select text and wrap it in a box instead.",
 }
 
-type NotationProps = { node: DemoBox; selectedId: number | null; onSelect: (id: number | null) => void }
+type NotationProps = { node: DemoBox; selectedId?: number | null; onSelect?: (id: number | null) => void; readOnly?: boolean }
 
 // The bracket text and the clicker's 3D boxes are two views of the same
 // tree — this renders one bracket pair per node, each independently
 // clickable and highlighted in sync with its 3D box, via the same
 // selectedId/onSelect the scene uses. Mirrors the app's real pure-mode
-// syntax: `]` for a plain box, `]ᵃ` for one marked anti.
-function Notation({ node, selectedId, onSelect }: NotationProps) {
+// syntax: `]` for a plain box, `]ᵃ` for one marked anti. onSelect is
+// optional — a computed result (see App.tsx) is read-only, so its
+// notation renders with no click handler at all rather than one that
+// does nothing; readOnly just dims it so that's visible at a glance too.
+function Notation({ node, selectedId, onSelect, readOnly }: NotationProps) {
   return (
     <span
-      className={node.id === selectedId ? 'selected' : undefined}
-      onClick={(e) => {
-        e.stopPropagation()
-        onSelect(node.id)
-      }}
+      className={[node.id === selectedId ? 'selected' : '', readOnly ? 'read-only' : ''].filter(Boolean).join(' ') || undefined}
+      onClick={
+        onSelect &&
+        ((e) => {
+          e.stopPropagation()
+          onSelect(node.id)
+        })
+      }
     >
       [
       {node.children.map((child, i) => (
         <Fragment key={child.id}>
           {i > 0 ? ' ' : ''}
-          <Notation node={child} selectedId={selectedId} onSelect={onSelect} />
+          <Notation node={child} selectedId={selectedId} onSelect={onSelect} readOnly={readOnly} />
         </Fragment>
       ))}
       {node.anti ? ']ᵃ' : ']'}
@@ -58,7 +65,20 @@ type Props = {
   pureText: string
   setPureText: (t: string) => void
   pureError: string | null
-  boxBuilder: BoxBuilder
+  boxA: BoxBuilder
+  boxB: BoxBuilder
+  selectA: (id: number | null) => void
+  selectB: (id: number | null) => void
+  activeBuilder: BoxBuilder
+  activeBox: 'A' | 'B'
+  operator: Operator | null
+  // Clicking an operator button always goes through this — a fresh
+  // operator, the same one again (advancing distribute -> evaluate, or
+  // clearing), App.tsx owns what "again" means, this component just
+  // reports which button was pressed.
+  onOperatorClick: (op: Operator) => void
+  stage: 'distribute' | 'evaluate'
+  result: DemoBox | null
   info: AppliedInfo | PureInfo | null
 }
 
@@ -79,7 +99,16 @@ export default function InputPanel({
   pureText,
   setPureText,
   pureError,
-  boxBuilder,
+  boxA,
+  boxB,
+  selectA,
+  selectB,
+  activeBuilder,
+  activeBox,
+  operator,
+  onOperatorClick,
+  stage,
+  result,
   info,
 }: Props) {
   const [hasSelection, setHasSelection] = useState(false)
@@ -205,26 +234,60 @@ export default function InputPanel({
           {pureEditMode === 'clicker' ? (
             <>
               <p>
-                Click a box (here or in the scene above) to move the cursor. Nest/add-box target it; delete removes
-                it and everything inside it.
+                Click a box — its bracket text, or its own 3D content — to make it active; nest/add-box/delete then
+                target whichever box that was. Pick an operator to bring in a second box; x/^ click again to step
+                from the un-merged pairs to the evaluated result, and again to clear.
               </p>
+
+              <div id="box-operator-row">
+                {OPERATORS.map((op) => (
+                  <button
+                    key={op}
+                    type="button"
+                    className={operator === op ? 'active' : ''}
+                    onClick={() => onOperatorClick(op)}
+                  >
+                    {op}
+                  </button>
+                ))}
+              </div>
+
+              {operator && operator !== '+' && (
+                <p id="operator-stage-indicator">{stage === 'distribute' ? 'showing: pairs (unmerged)' : 'showing: evaluated result'}</p>
+              )}
+
+              <div className="box-nest-notation">
+                <Notation node={boxA.root} selectedId={boxA.selectedId} onSelect={selectA} />
+                {operator && (
+                  <>
+                    <span className="operator-symbol">{operator}</span>
+                    <Notation node={boxB.root} selectedId={boxB.selectedId} onSelect={selectB} />
+                    {result && (
+                      <>
+                        <span className="operator-symbol">=</span>
+                        <Notation node={result} readOnly />
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {operator && <p id="active-box-indicator">editing box {activeBox}</p>}
+
               <div className="box-nest-controls">
-                <button type="button" onClick={boxBuilder.deleteAction} disabled={!boxBuilder.canDelete}>
+                <button type="button" onClick={activeBuilder.deleteAction} disabled={!activeBuilder.canDelete}>
                   delete
                 </button>
-                <span className="box-nest-notation">
-                  <Notation node={boxBuilder.root} selectedId={boxBuilder.selectedId} onSelect={boxBuilder.setSelectedId} />
-                </span>
-                <button type="button" className="positive" onClick={() => boxBuilder.addBox(false)} disabled={!boxBuilder.canAddBox}>
+                <button type="button" className="positive" onClick={() => activeBuilder.addBox(false)} disabled={!activeBuilder.canAddBox}>
                   add box
                 </button>
-                <button type="button" className="negative" onClick={() => boxBuilder.addBox(true)} disabled={!boxBuilder.canAddBox}>
+                <button type="button" className="negative" onClick={() => activeBuilder.addBox(true)} disabled={!activeBuilder.canAddBox}>
                   add antibox
                 </button>
-                <button type="button" className="positive" onClick={() => boxBuilder.nest(false)} disabled={!boxBuilder.canNest}>
+                <button type="button" className="positive" onClick={() => activeBuilder.nest(false)} disabled={!activeBuilder.canNest}>
                   nest
                 </button>
-                <button type="button" className="negative" onClick={() => boxBuilder.nest(true)} disabled={!boxBuilder.canNest}>
+                <button type="button" className="negative" onClick={() => activeBuilder.nest(true)} disabled={!activeBuilder.canNest}>
                   antinest
                 </button>
               </div>

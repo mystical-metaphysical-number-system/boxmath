@@ -10,11 +10,17 @@ import {
   treeDepth,
   wrapNode,
 } from './lib/demoBox'
+import { NestedBoxes } from './BoxScene'
 
-// Owns the "clicker" box-builder's whole state + editing logic in one
-// place, so the sidebar controls (buttons) and the 3D scene (click-to-
-// select, keyboard shortcut) can share a single source of truth instead
-// of each keeping their own copy.
+// Owns the "clicker" box-builder's whole state + editing logic *and* its
+// renderable content in one place — `view` below is a plain group of
+// meshes with no Canvas/camera/lighting of its own, so any consumer can
+// drop it into whatever scene ("skin") they're using without either side
+// needing to know about the other. That's what makes multiple boxes
+// sharing one scene possible later: each box gets its own
+// useBoxBuilder(), each hands back its own `view`, and a shared <Canvas>
+// just mounts however many of them, at whatever offsets, side by side —
+// nothing about this hook or NestedBoxes has to change for that.
 export function useBoxBuilder() {
   const nextId = useRef(1)
   const makeLeaf = (anti: boolean): DemoBox => ({ id: nextId.current++, anti, children: [] })
@@ -82,7 +88,9 @@ export function useBoxBuilder() {
     return () => window.removeEventListener('keydown', handler)
   })
 
-  return { root, selectedId, setSelectedId, nest, addBox, deleteAction, canNest, canAddBox, canDelete }
+  const view = <NestedBoxes root={root} selectedId={selectedId} onSelect={setSelectedId} />
+
+  return { root, selectedId, setSelectedId, nest, addBox, deleteAction, view, canNest, canAddBox, canDelete }
 }
 
 export type BoxBuilder = ReturnType<typeof useBoxBuilder>

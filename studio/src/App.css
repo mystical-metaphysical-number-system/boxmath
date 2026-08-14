@@ -231,6 +231,35 @@
   display: block;
 }
 
+.split-canvas-row {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.split-canvas-half {
+  /* flex-basis 0 rather than 50% — divides evenly among however many
+     halves are actually present (two boxes, or two boxes plus a result),
+     instead of assuming exactly two. */
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+
+.split-canvas-divider {
+  flex: none;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
 #pure-edit-toggle {
   display: flex;
   border: 1px solid var(--border);
@@ -260,8 +289,36 @@
   cursor: not-allowed;
 }
 
+#box-operator-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+#box-operator-row button {
+  flex: 1;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 5px 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+#box-operator-row button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .box-nest-notation {
-  display: block;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 14px;
   line-height: 1.6;
@@ -272,6 +329,23 @@
   background: var(--code-bg);
   margin-bottom: 10px;
   word-break: break-all;
+}
+
+.operator-symbol {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+#active-box-indicator {
+  font-size: 12px;
+  color: var(--text);
+  margin: -4px 0 10px;
+}
+
+#operator-stage-indicator {
+  font-size: 12px;
+  color: var(--accent);
+  margin: -4px 0 10px;
 }
 
 .box-nest-controls {
@@ -316,6 +390,14 @@
   background: rgba(59, 130, 246, 0.18);
   border-radius: 2px;
   outline: 1px solid #3b82f6;
+}
+
+/* Not opacity — readOnly cascades to every nested span (see Notation in
+   InputPanel.tsx), and opacity compounds visually with nesting depth;
+   a flat color change doesn't. */
+.box-nest-notation span.read-only {
+  cursor: default;
+  color: var(--text);
 }
 
 .viewer-label {
