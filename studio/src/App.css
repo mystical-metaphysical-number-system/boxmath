@@ -87,6 +87,11 @@
   color: #fff;
 }
 
+#mode-toggle button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 #mode-explainer {
   font-size: 12px;
   color: var(--text);
@@ -248,6 +253,11 @@
 #pure-edit-toggle button.active {
   background: var(--accent);
   color: #fff;
+}
+
+#pure-edit-toggle button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .box-nest-notation {

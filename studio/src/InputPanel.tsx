@@ -172,7 +172,7 @@ export default function InputPanel({
       <h1>boxmath studio</h1>
 
       <div id="mode-toggle">
-        <button type="button" className={mode === 'applied' ? 'active' : ''} onClick={() => setMode('applied')}>
+        <button type="button" disabled title="Temporarily disabled — not the head of capability right now, coming back to it later">
           Applied
         </button>
         <button type="button" className={mode === 'pure' ? 'active' : ''} onClick={() => setMode('pure')}>
@@ -197,11 +197,7 @@ export default function InputPanel({
             >
               clicker
             </button>
-            <button
-              type="button"
-              className={pureEditMode === 'text' ? 'active' : ''}
-              onClick={() => setPureEditMode('text')}
-            >
+            <button type="button" disabled title="Temporarily disabled while the clicker gets built out">
               textbox
             </button>
           </div>

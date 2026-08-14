@@ -24,6 +24,8 @@ npm install
 
 This is an npm workspace — one install at the repo root covers the library (`packages/boxmath`) and the `studio` visualizer together.
 
+No git experience needed to get the code itself — GitHub's **`< > Code` → Download ZIP** button works fine. See [`GETTING_STARTED.md`](./GETTING_STARTED.md) for the complete from-scratch walkthrough (Node install included).
+
 ## `boxmath/pure`
 
 ```ts

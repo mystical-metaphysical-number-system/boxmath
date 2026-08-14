@@ -28,7 +28,10 @@ function pureInfo(parsed: PureNode): PureInfo {
 
 function App() {
   const [text, setText] = useState(DEFAULT_BOX)
-  const [mode, setMode] = useState<Mode>('applied')
+  // Applied is greyed out in the sidebar for now (see InputPanel's
+  // mode-toggle) — starting there would land on an unreachable mode with
+  // no way back to it via the UI.
+  const [mode, setMode] = useState<Mode>('pure')
   const [pureEditMode, setPureEditMode] = useState<PureEditMode>('clicker')
   const [pureText, setPureText] = useState(DEFAULT_PURE_TEXT)
   const boxBuilder = useBoxBuilder()
