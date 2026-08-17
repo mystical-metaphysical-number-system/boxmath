@@ -67,19 +67,56 @@ type Props = {
   pureError: string | null
   boxA: BoxBuilder
   boxB: BoxBuilder
+  boxC: BoxBuilder
   selectA: (id: number | null) => void
   selectB: (id: number | null) => void
+  selectC: (id: number | null) => void
   activeBuilder: BoxBuilder
-  activeBox: 'A' | 'B'
-  operator: Operator | null
-  // Clicking an operator button always goes through this — a fresh
-  // operator, the same one again (advancing distribute -> evaluate, or
-  // clearing), App.tsx owns what "again" means, this component just
-  // reports which button was pressed.
-  onOperatorClick: (op: Operator) => void
-  stage: 'distribute' | 'evaluate'
-  result: DemoBox | null
+  activeBox: 'A' | 'B' | 'C'
+  // Two operator slots: operator1 combines A with a "group" (B alone, or
+  // B ⊕ C once operator2 brings C in) — A ⊕ (B ⊕ C), the shape the
+  // board's distributive identities are drawn in. Clicking an operator
+  // button always goes through the matching handler — the same operator
+  // clears it, a different one switches, App.tsx owns that logic, this
+  // component just reports which button was pressed.
+  operator1: Operator | null
+  onOperator1Click: (op: Operator) => void
+  operator2: Operator | null
+  onOperator2Click: (op: Operator) => void
+  // Both stages of the outer combination, always computed and always
+  // shown together — never one hidden behind a second click on the other.
+  // See App.tsx for why: a click-to-advance toggle here hid the
+  // unmerged-pairs view behind an interaction nothing on screen
+  // advertised.
+  resultPairs: DemoBox | null
+  resultFinal: DemoBox | null
   info: AppliedInfo | PureInfo | null
+}
+
+type OperatorRowProps = {
+  label: string
+  operator: Operator | null
+  onOperatorClick: (op: Operator) => void
+}
+
+// A row of ⊕ buttons — used twice (operator1, operator2), identical
+// either way. Clicking the active operator again clears it; clicking a
+// different one switches. No hidden second stage to advance here anymore
+// — both the unmerged and final forms of whatever this combines render
+// together, below, the moment an operator is picked.
+function OperatorRow({ label, operator, onOperatorClick }: OperatorRowProps) {
+  return (
+    <>
+      <p className="operator-row-label">{label}</p>
+      <div className="box-operator-row">
+        {OPERATORS.map((op) => (
+          <button key={op} type="button" className={operator === op ? 'active' : ''} onClick={() => onOperatorClick(op)}>
+            {op}
+          </button>
+        ))}
+      </div>
+    </>
+  )
 }
 
 // This is the single source of every input — both viewers below read the
@@ -101,14 +138,18 @@ export default function InputPanel({
   pureError,
   boxA,
   boxB,
+  boxC,
   selectA,
   selectB,
+  selectC,
   activeBuilder,
   activeBox,
-  operator,
-  onOperatorClick,
-  stage,
-  result,
+  operator1,
+  onOperator1Click,
+  operator2,
+  onOperator2Click,
+  resultPairs,
+  resultFinal,
   info,
 }: Props) {
   const [hasSelection, setHasSelection] = useState(false)
@@ -235,68 +276,48 @@ export default function InputPanel({
             <>
               <p>
                 Click a box — its bracket text, or its own 3D content — to make it active; nest/add-box/delete then
-                target whichever box that was. Pick an operator to bring in a second box.
+                target whichever box that was. Pick an operator to bring in box B; pick a second operator to group C
+                in with B, forming A ⊕ (B ⊕ C) — the distributive-law shape (A x (B+C) = (AxB)+(AxC), and the same
+                for ^). Once an operator's picked, both the raw unmerged pairing and the fully reduced result show
+                below, side by side — nothing hidden behind a second click.
               </p>
 
-              <div id="box-operator-row">
-                {OPERATORS.map((op) => {
-                  const isActive = operator === op
-                  // A visible cue right on the button, not just in body
-                  // text elsewhere — x/^'s distribute stage is a real
-                  // second click waiting to happen, easy to miss
-                  // otherwise (the big call-to-action below is the other
-                  // half of this fix — two different-looking places to
-                  // find the same action).
-                  const hasNextStage = isActive && op !== '+' && stage === 'distribute'
-                  return (
-                    <button key={op} type="button" className={isActive ? 'active' : ''} onClick={() => onOperatorClick(op)}>
-                      {op}
-                      {hasNextStage && <span className="next-stage-hint"> ›</span>}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {operator && (
-                <button type="button" id="operator-stage-indicator" onClick={() => onOperatorClick(operator)}>
-                  {operator === '+' ? (
-                    <>
-                      showing the union — <strong>click to clear</strong>
-                    </>
-                  ) : (
-                    <>
-                      <span className="stage-step">step {stage === 'distribute' ? '1' : '2'} of 2</span>
-                      {stage === 'distribute' ? (
-                        <>
-                          showing un-merged pairs — <strong>click for the evaluated result</strong>
-                        </>
-                      ) : (
-                        <>
-                          showing the evaluated result — <strong>click to clear</strong>
-                        </>
-                      )}
-                    </>
-                  )}
-                </button>
-              )}
+              <OperatorRow label="A ⊕ …" operator={operator1} onOperatorClick={onOperator1Click} />
+              <OperatorRow label="… ⊕ C (groups C in with B)" operator={operator2} onOperatorClick={onOperator2Click} />
 
               <div className="box-nest-notation">
                 <Notation node={boxA.root} selectedId={boxA.selectedId} onSelect={selectA} />
-                {operator && (
+                {operator1 && (
                   <>
-                    <span className="operator-symbol">{operator}</span>
+                    <span className="operator-symbol">{operator1}</span>
+                    {operator2 && <span className="paren">(</span>}
                     <Notation node={boxB.root} selectedId={boxB.selectedId} onSelect={selectB} />
-                    {result && (
+                    {operator2 && (
+                      <>
+                        <span className="operator-symbol">{operator2}</span>
+                        <Notation node={boxC.root} selectedId={boxC.selectedId} onSelect={selectC} />
+                        <span className="paren">)</span>
+                      </>
+                    )}
+                    {resultPairs && (
+                      <>
+                        <span className="operator-symbol muted">=</span>
+                        <span className="result-caption">unmerged pairs</span>
+                        <Notation node={resultPairs} readOnly />
+                      </>
+                    )}
+                    {resultFinal && (
                       <>
                         <span className="operator-symbol">=</span>
-                        <Notation node={result} readOnly />
+                        <span className="result-caption final">final result</span>
+                        <Notation node={resultFinal} readOnly />
                       </>
                     )}
                   </>
                 )}
               </div>
 
-              {operator && <p id="active-box-indicator">editing box {activeBox}</p>}
+              {operator1 && <p id="active-box-indicator">editing box {activeBox}</p>}
 
               <div className="box-nest-controls">
                 <button type="button" onClick={activeBuilder.deleteAction} disabled={!activeBuilder.canDelete}>

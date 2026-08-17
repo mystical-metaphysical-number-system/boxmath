@@ -239,11 +239,45 @@
 
 .split-canvas-half {
   /* flex-basis 0 rather than 50% — divides evenly among however many
-     halves are actually present (two boxes, or two boxes plus a result),
-     instead of assuming exactly two. */
+     halves are actually present (A, B, C, unmerged pairs, final result —
+     however many of those are showing), instead of assuming exactly two. */
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-canvas-caption {
+  flex: none;
+  margin: 0;
+  padding: 4px 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The unmerged-pairs column and its leading "=" read as a lighter,
+   provisional step — the final column stays full-strength, so the two
+   are distinguishable at a glance without reading either label. */
+.split-canvas-caption.muted {
+  color: #94a3b8;
+}
+
+.split-canvas-caption.final {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.split-canvas-tree {
+  flex: 1;
+  min-height: 0;
+  position: relative;
 }
 
 .split-canvas-divider {
@@ -258,6 +292,11 @@
   color: var(--text);
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
+}
+
+.split-canvas-divider.muted {
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 #pure-edit-toggle {
@@ -289,13 +328,25 @@
   cursor: not-allowed;
 }
 
-#box-operator-row {
+.operator-row-label {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 10px 0 4px;
+}
+
+.operator-row-label:first-of-type {
+  margin-top: 0;
+}
+
+.box-operator-row {
   display: flex;
   gap: 4px;
   margin-bottom: 10px;
 }
 
-#box-operator-row button {
+.box-operator-row button {
   flex: 1;
   font: inherit;
   font-family: var(--mono);
@@ -308,19 +359,10 @@
   cursor: pointer;
 }
 
-#box-operator-row button.active {
+.box-operator-row button.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
-}
-
-.next-stage-hint {
-  display: inline-block;
-  font-weight: 700;
-  /* A little larger and nudged up — reads as "there's more here", not
-     just decorative punctuation tacked onto the label. */
-  font-size: 1.15em;
-  transform: translateY(-1px);
 }
 
 .box-nest-notation {
@@ -345,49 +387,38 @@
   color: var(--accent);
 }
 
+/* The "=" leading into the unmerged-pairs form — deliberately lighter
+   than the accent color a "live" operator/equals gets elsewhere in this
+   line, so the two result steps read as "provisional, then final" without
+   needing to read either caption. */
+.operator-symbol.muted {
+  color: #94a3b8;
+}
+
+.paren {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* A short label riding inline right before each result's own notation —
+   answers "is this the final answer, or a step on the way there?" without
+   requiring any click to find out. */
+.result-caption {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.result-caption.final {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 #active-box-indicator {
   font-size: 12px;
   color: var(--text);
   margin: -4px 0 10px;
-}
-
-/* A real button, not quiet body text — this is the fix for "I had no
-   idea I could click that twice": the same action the operator button
-   itself does, restated as an explicit, impossible-to-miss
-   call-to-action, styled distinctly enough from the other controls that
-   it reads as "click me next" on sight. */
-#operator-stage-indicator {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: left;
-  font: inherit;
-  font-size: 12px;
-  padding: 8px 10px;
-  margin-bottom: 10px;
-  border: 1px dashed var(--accent);
-  border-radius: 4px;
-  background: rgba(59, 130, 246, 0.08);
-  color: var(--text-h);
-  cursor: pointer;
-}
-
-#operator-stage-indicator:hover {
-  background: rgba(59, 130, 246, 0.16);
-}
-
-#operator-stage-indicator .stage-step {
-  display: block;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 2px;
-}
-
-#operator-stage-indicator strong {
-  color: var(--accent);
 }
 
 .box-nest-controls {
