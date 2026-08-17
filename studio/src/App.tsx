@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { findType, getDegree, getRank } from 'boxmath/applied'
 import { toAppliedDisplayTree, toBigIntBox } from './lib/applied'
 import { DEFAULT_PURE_TEXT, evaluatePure, formatPureValue, parsePure, pureCountLeaves, pureCountNodes, pureHeight, pureNodeToDisplay, pureValue, type PureNode } from './lib/pure'
@@ -9,11 +9,20 @@ import InputPanel, { type AppliedInfo, type Mode, type PureEditMode, type PureIn
 import RootedTreeView from './RootedTreeView'
 import BoxScene, { NestedBoxes } from './BoxScene'
 import NodeLabel from './NodeLabel'
-import { useBoxBuilder } from './useBoxBuilder'
+import { useBoxBuilder, type BoxSnapshot } from './useBoxBuilder'
 import { usePanelWidth } from './usePanelWidth'
 import './App.css'
 
 const DEFAULT_BOX = '[[1,2],[3,4,5]]'
+
+type BoxKey = 'A' | 'B' | 'C'
+
+// One entry in the shared undo/redo timeline: which box changed, and its
+// state immediately before/after. Recorded only for actual tree edits
+// (nest/add-box/delete — see useBoxBuilder's onChange), never for
+// selection alone, so clicking around to look at a box doesn't itself
+// become an undoable step.
+type HistoryEntry = { box: BoxKey; prev: BoxSnapshot; next: BoxSnapshot }
 
 // Shared by both pure-mode input methods (typed text or the clicker) —
 // same PureNode in, same DisplayNode/info out, so coloring/layout can't
@@ -36,9 +45,24 @@ function App() {
   const [mode, setMode] = useState<Mode>('pure')
   const [pureEditMode, setPureEditMode] = useState<PureEditMode>('clicker')
   const [pureText, setPureText] = useState(DEFAULT_PURE_TEXT)
-  const boxA = useBoxBuilder()
-  const boxB = useBoxBuilder()
-  const boxC = useBoxBuilder()
+
+  // One cross-box undo/redo timeline, not three separate per-box ones —
+  // add to A, then B, then C, and Ctrl+Z three times should back out C's
+  // add, then B's, then A's, in the order they actually happened, the
+  // same way a text editor's undo doesn't care which paragraph a given
+  // edit landed in. `past`/`future` hold entries in chronological/
+  // reverse-chronological order; a fresh edit after undoing clears
+  // `future`, same as any standard undo stack.
+  const [past, setPast] = useState<HistoryEntry[]>([])
+  const [future, setFuture] = useState<HistoryEntry[]>([])
+  const recordHistory = (box: BoxKey) => (prev: BoxSnapshot, next: BoxSnapshot) => {
+    setPast((p) => [...p, { box, prev, next }])
+    setFuture([])
+  }
+
+  const boxA = useBoxBuilder(recordHistory('A'))
+  const boxB = useBoxBuilder(recordHistory('B'))
+  const boxC = useBoxBuilder(recordHistory('C'))
   const panel = usePanelWidth()
 
   // Which box the shared nest/add-box/delete controls act on — not a
@@ -92,6 +116,62 @@ function App() {
     boxC.setSelectedId(id)
   }
   const activeBuilder = activeBox === 'A' ? boxA : activeBox === 'B' ? boxB : boxC
+  const builderFor = (box: BoxKey) => (box === 'A' ? boxA : box === 'B' ? boxB : boxC)
+
+  // Both walk the shared timeline, not any one box's own state — pop the
+  // most recent entry, restore whichever box it belongs to straight from
+  // the stored snapshot (restore bypasses onChange, so this never records
+  // itself as a new step), and switch the active box to match, so it's
+  // visually obvious which box just changed.
+  //
+  // The restore/setActiveBox side effects happen directly in the handler
+  // body, never inside a setPast/setFuture updater callback — StrictMode
+  // deliberately double-invokes updater functions to catch exactly that
+  // kind of impurity, and an earlier version of this that called
+  // `.restore()` from inside `setFuture(f => ...)` got its snapshot
+  // applied twice per keypress, silently corrupting the stacks (one redo
+  // would appear to do nothing, having been consumed by its own phantom
+  // double-invocation). Reading `past`/`future` as plain values instead of
+  // through the functional-updater form is safe here specifically because
+  // undo/redo only ever run from a single synchronous keydown/click event,
+  // never from inside another in-flight update.
+  const undo = () => {
+    if (past.length === 0) return
+    const entry = past[past.length - 1]
+    builderFor(entry.box).restore(entry.prev)
+    setActiveBox(entry.box)
+    setPast((p) => p.slice(0, -1))
+    setFuture((f) => [...f, entry])
+  }
+  const redo = () => {
+    if (future.length === 0) return
+    const entry = future[future.length - 1]
+    builderFor(entry.box).restore(entry.next)
+    setActiveBox(entry.box)
+    setFuture((f) => f.slice(0, -1))
+    setPast((p) => [...p, entry])
+  }
+
+  // Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y to redo — global,
+  // not scoped to whichever box is active, since the whole point is one
+  // shared timeline across all three. Guarded the same way each box's own
+  // Backspace/Delete handler is (see useBoxBuilder): a real text input
+  // (the Applied textarea, the Pure contentEditable) keeps the browser's
+  // own undo instead of having this hijack it.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      const key = e.key.toLowerCase()
+      if (key !== 'z' && key !== 'y') return
+      const active = document.activeElement
+      if (active instanceof HTMLElement && (active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+      e.preventDefault()
+      if (key === 'y' || e.shiftKey) redo()
+      else undo()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  })
 
   // The inner group — B alone, or B ⊕ C once operator2 brings C in. Always
   // the fully-reduced (applyOperator) form: this is what actually feeds
@@ -323,6 +403,10 @@ function App() {
         onOperator2Click={handleOperator2Click}
         resultPairs={resultPairs}
         resultFinal={resultFinal}
+        canUndo={past.length > 0}
+        canRedo={future.length > 0}
+        onUndo={undo}
+        onRedo={redo}
         info={info}
       />
       <div

@@ -90,6 +90,14 @@ type Props = {
   // advertised.
   resultPairs: DemoBox | null
   resultFinal: DemoBox | null
+  // One shared undo/redo timeline across all three boxes — see App.tsx's
+  // `past`/`future` for why it's one stack rather than per-box: undoing
+  // three edits made in A, then B, then C should back them out in that
+  // same order, not per-box order.
+  canUndo: boolean
+  canRedo: boolean
+  onUndo: () => void
+  onRedo: () => void
   info: AppliedInfo | PureInfo | null
 }
 
@@ -150,6 +158,10 @@ export default function InputPanel({
   onOperator2Click,
   resultPairs,
   resultFinal,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   info,
 }: Props) {
   const [hasSelection, setHasSelection] = useState(false)
@@ -318,6 +330,15 @@ export default function InputPanel({
               </div>
 
               {operator1 && <p id="active-box-indicator">editing box {activeBox}</p>}
+
+              <div className="box-nest-controls">
+                <button type="button" onClick={onUndo} disabled={!canUndo} title="Ctrl/Cmd+Z">
+                  ↶ undo
+                </button>
+                <button type="button" onClick={onRedo} disabled={!canRedo} title="Ctrl/Cmd+Shift+Z">
+                  ↷ redo
+                </button>
+              </div>
 
               <div className="box-nest-controls">
                 <button type="button" onClick={activeBuilder.deleteAction} disabled={!activeBuilder.canDelete}>
